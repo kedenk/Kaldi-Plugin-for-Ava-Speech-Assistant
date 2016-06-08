@@ -9,10 +9,18 @@ public class TEST_speechRecognition {
 		System.out.println("Starting test main...");
 		
 		PluginEntry entry = new PluginEntry(); 
-		
+		System.out.println("Starting Kaldi plugin...");
 		entry.start();
 
-		System.out.println("Test main terminats.");
+
+		try {
+			Thread.sleep(15000);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		
+		System.out.println("Stopping Kaldi plugin.");
+		entry.stop(); 
 	}
 
 }

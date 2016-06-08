@@ -72,10 +72,11 @@ public class PluginEntry implements STTPlugin {
 	public void stop() {
 		log.info("Try to stop the kaldi ASR Plugin. ");
 		try {
+			this.SR_EXEC.prepareForShutdown();
+			
 			if( this.SR_EXEC != null && this.asr_thread != null ) {
 				this.SR_EXEC.stopRuntime();
 				
-				this.asr_thread.notify();
 				this.asr_thread.join(WAIT_FOR_THREAD_TERMINATION);
 				
 				this.SR_EXEC = null; 
@@ -88,6 +89,7 @@ public class PluginEntry implements STTPlugin {
 			log.catching(Level.DEBUG, e);
 		}
 		
+		log.info("Kaldi ASR Plugin terminated");
 	}
 
 	@Override

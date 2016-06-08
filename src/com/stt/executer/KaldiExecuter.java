@@ -1,6 +1,7 @@
 package com.stt.executer;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
@@ -12,7 +13,14 @@ import org.ava.eventhandling.UtteranceRecognizedEvent;
 import org.ava.pluginengine.PluginState;
 import org.ava.util.PropertiesFileLoader;
 
-
+/**
+ * The class KaldiExecuter can execute the Kaldi ASR online-gmm-decode-faster appliaction and implements the Runnable interface. 
+ * After the execution of this class in a seperated thread the online-gmm-decode-faster will executet and provides speech recognition as text from the microphone. 
+ * 
+ * @author Kevin
+ * @since 2016-06-05
+ * @version 1
+ */
 public class KaldiExecuter implements Runnable {
 
 	final Logger log = LogManager.getLogger(KaldiExecuter.class);
@@ -69,12 +77,18 @@ public class KaldiExecuter implements Runnable {
 	}
 	
 	
+	/**
+	 * Initialize this class. 
+	 */
 	private void init() {
 		
 		this.resultListener = new ResultListener(); 
 	}
 
 	
+	/**
+	 * Starts the Kaldi program execution routine and is automatically executet when the thread with this runnable is started. 
+	 */
 	@Override
 	public void run() {
 		
@@ -84,12 +98,18 @@ public class KaldiExecuter implements Runnable {
 			this.startKaldiProgram();
 			
 		} catch (IOException e) {
-			log.fatal("An error occured while executing the Kaldi ASR Executer.");
+			log.fatal("An error occured while executing the Kaldi ASR Executer or starting the kaldi program.");
 			log.catching(Level.DEBUG, e);
 		} 
 	}
 	
 	
+	/**
+	 * This method starts the online-gmm-decode-faster applikation of Kaldi ASR. 
+	 * The recognized utterances will be triggered <code>eventBus.fireUtteranceRecognizedEvent</code>. 
+	 * 
+	 * @throws IOException
+	 */
 	public void startKaldiProgram() throws IOException {
 		
 		log.debug("Starting Kaldi Program " + this.program);
@@ -105,9 +125,13 @@ public class KaldiExecuter implements Runnable {
 		String words = this.ac_model + "/words.txt"; 
 		String sils = "1:2:3:4:5"; 
 		
+		if( !isProgramAvailable() ) {
+			log.fatal("Given Kaldi program is not available or executable."); 
+			return; 
+		}
 		
 		this.runtime = Runtime.getRuntime();
-		String[] commands = {this.program, "--acoustic-scale=0.3", "--rt-min=0.3", "--rt-max=0.6", "--beam=14", "--max-active=4000", model, fst, words, sils};
+		String[] commands = {this.program, "--acoustic-scale=0.3", "--rt-min=0.3", "--rt-max=0.6", "--beam=14", "--max-active=4000", model, fst, words, sils, ac_model + "/matrix"};
 		this.process = runtime.exec(commands);
 		
 		KaldiPluginState.setPluginState(PluginState.RUNNING);
@@ -119,58 +143,117 @@ public class KaldiExecuter implements Runnable {
 		     InputStreamReader(this.process.getErrorStream()));
 
 		// read the output from the command
-		String hypothesis = null;
-		while (!isClosing && (KaldiPluginState.getPluginState() == PluginState.RUNNING) &&(hypothesis = this.stdInput.readLine()) != null) {
-		    
-			if( KaldiPluginState.getPluginState() == PluginState.INTERRUPTED ) {
-				try {
-					this.wait();
-					continue; 
-				} catch (InterruptedException e) {
-					log.catching(Level.DEBUG, e);
-				} 
+		try {
+			if( this.stdInput != null ) {
+				String hypothesis = null;
+				while (!isClosing && (KaldiPluginState.getPluginState() == PluginState.RUNNING) &&(hypothesis = this.stdInput.readLine()) != null) {
+				    
+					if( KaldiPluginState.getPluginState() == PluginState.INTERRUPTED ) {
+						try {
+							this.wait();
+							continue; 
+						} catch (InterruptedException e) {
+							log.catching(Level.DEBUG, e);
+						} 
+					}
+					
+					if( this.isRequestedResult ) {
+						this.isRequestedResult = false; 
+						this.resultListener.addResultString(hypothesis);
+					}
+					
+					if( !hypothesis.equals("") && !this.isRequestedResult && !isClosing ) {
+						log.debug("Recognized Utterance: " + hypothesis);
+						this.eventBus.fireUtteranceRecognizedEvent(new UtteranceRecognizedEvent(hypothesis));
+					}				
+				}
 			}
-			
-			if( this.isRequestedResult ) {
-				this.isRequestedResult = false; 
-				this.resultListener.addResultString(hypothesis);
+		}
+		catch(Exception e) {
+			if( !isClosing ) {
+				throw e; 
 			}
-			
-			if( !hypothesis.equals("") && !this.isRequestedResult && !isClosing ) {
-				log.debug("Recognized Utterance: " + hypothesis);
-				this.eventBus.fireUtteranceRecognizedEvent(new UtteranceRecognizedEvent(hypothesis));
-			}				
 		}
 
+			
 		// read any errors from the attempted command
-		String err = null; 
-		while ((err = this.stdError.readLine()) != null) {
-		    log.error(err); 
+		if( this.stdError != null ) {
+			String err = null; 
+			while ((err = this.stdError.readLine()) != null && !isClosing) {
+			    log.error(err); 
+			}
 		}
 		
 		log.debug("Recognition loop terminated.");
 	}
 	
+	
+	/**
+	 * <code>stopRuntime</code> stops the process with the online-gmm-decode-faster. 
+	 * 
+	 * @throws IOException
+	 */
 	public void stopRuntime() throws IOException {
-		
-		if( this.stdInput != null )
-			this.stdInput.close();
+			
+		if( this.stdInput != null ) {
+			this.stdInput = null; 
+			//this.stdInput.close();
+		}
 		
 		if( this.stdError != null )
-			this.stdError.close();
+			//this.stdError.close();
+			stdError = null; 
 		
-		this.process.destroyForcibly(); 
-		
+		this.process.destroy(); 
+		/*
 		if( this.process.exitValue() != 0 ) {
 			log.info("Kaldi ASR terminated with exit code != 0. Exit code: " + this.process.exitValue());
 		}
+		*/
 	}
 	
+	/**
+	 * If the next recognized utterance should be put to the ResultListener the parameter b must be set. 
+	 * 
+	 * @param b Boolean
+	 */
 	public void setIsRequestedResult(Boolean b) {
 		this.isRequestedResult = b; 
 	}
 	
+	/**
+	 *  Returns the ResultListener of this class. 
+	 *  
+	 * @return ResultListener
+	 */
 	public ResultListener getResultListener() {
 		return this.resultListener; 
+	}
+	
+	/**
+	 * Validate the given Kaldi program, if it is available. 
+	 * 
+	 * @return Boolean
+	 */
+	private Boolean isProgramAvailable() {
+		log.debug("Validate Kaldi program path");
+		File p = new File(this.program); 
+		
+		if( p.exists() && p.canExecute() ) {
+			log.debug("Kaldi program path is valid");
+			return true; 
+		}
+		log.debug("Not a valid Kaldi program path. Path: " + this.program);
+		return false; 
+	}
+	
+	/**
+	 * This methode prepares this class for shuting down. 
+	 * The member variable <code>isClosing</code> will be set to true. 
+	 * 
+	 * This method does not shut down the given program of this class. 
+	 */
+	public void prepareForShutdown() {
+		this.isClosing = true; 
 	}
 }
