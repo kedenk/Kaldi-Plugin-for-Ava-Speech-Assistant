@@ -1,6 +1,0 @@
-INFO  2016-06-07 20:10:47,850 [main] com.stt.PluginEntry:start(26): Starting Kaldi Speech Recognition Plugin.
-INFO  2016-06-07 20:10:47,902 [main] org.ava.util.PropertiesFileLoader:<init>(79): PropertiesFilePath is set to: /home/kevin/plugin-based-speech-recognition/code/workspace/AvaKaldi Plugin/res/
-INFO  2016-06-07 20:10:47,903 [main] org.ava.util.PropertiesFileLoader:<init>(80): PropertiesFileName is set to: sttPlugin.properties
-INFO  2016-06-07 20:10:47,912 [main] org.ava.util.PropertiesFileLoader:readPropertiesFile(235): Properties file '/home/kevin/plugin-based-speech-recognition/code/workspace/AvaKaldi Plugin/res/sttPlugin.properties' loaded.
-INFO  2016-06-07 20:10:47,913 [main] org.ava.util.PropertiesFileLoader:isPropertiesFileValid(280): Validating sttPlugin.properties
-INFO  2016-06-07 20:10:47,913 [main] org.ava.util.PropertiesFileLoader:isPropertiesFileValid(295): Properties file 'sttPlugin.properties' ok.
